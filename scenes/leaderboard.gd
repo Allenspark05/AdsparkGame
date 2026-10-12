@@ -1,19 +1,77 @@
 extends Node
 
 # Autoload: local leaderboard with one row per player (their best score).
-# Every player is kept so ranks beyond ten still work; the screens show the top 10.
-# Only _load() and _save() touch storage, so an online backend can replace them later.
+# Scores are cached in a local file and shared through a Firebase Realtime Database
+# (REST API, no SDK). If the network is down the local copy keeps working.
 
-const SHOWN : int = 10
+signal changed
+
+const SHOWN : int = 100
 const MAX_STORED : int = 500
 const MAX_NAME : int = 12
 
 var save_path : String = "user://leaderboard.json"
+var db_url : String = "https://adpsarkgame-default-rtdb.asia-southeast1.firebasedatabase.app"
 var entries : Array = []
 var last_name : String = ""
 
 func _ready():
 	_load()
+	# headless runs are tests: never touch the real online board from them
+	if DisplayServer.get_name() == "headless":
+		db_url = ""
+	refresh()
+
+# Pulls the top scores from the online board and merges them into the local copy.
+func refresh() -> void:
+	if db_url == "" or not is_inside_tree():
+		return
+	var req = HTTPRequest.new()
+	add_child(req)
+	req.request_completed.connect(_on_fetched.bind(req))
+	var url = db_url + '/scores.json?orderBy="score"&limitToLast=%d' % SHOWN
+	if req.request(url) != OK:
+		req.queue_free()
+
+func _on_fetched(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray, req: HTTPRequest) -> void:
+	req.queue_free()
+	if result != HTTPRequest.RESULT_SUCCESS or code != 200:
+		return
+	var parsed = JSON.parse_string(body.get_string_from_utf8())
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return
+	for k in parsed:
+		var e = parsed[k]
+		if typeof(e) == TYPE_DICTIONARY and typeof(e.get("score")) in [TYPE_INT, TYPE_FLOAT] \
+				and typeof(e.get("name")) == TYPE_STRING:
+			_merge({
+				"name": _clean_name(e["name"]),
+				"score": int(e["score"]),
+				"hero": str(e.get("hero", "boy")),
+				"date": str(e.get("date", "")),
+			})
+	_save()
+	changed.emit()
+
+# Firebase keys cannot hold . $ # [ ] / so the lowercase name is stored hex-encoded.
+func _db_key(clean: String) -> String:
+	return clean.to_lower().to_utf8_buffer().hex_encode()
+
+func _upload(entry: Dictionary) -> void:
+	if db_url == "" or not is_inside_tree():
+		return
+	var req = HTTPRequest.new()
+	add_child(req)
+	req.request_completed.connect(_on_uploaded.bind(req))
+	var url = "%s/scores/%s.json" % [db_url, _db_key(entry["name"])]
+	var err = req.request(url, ["Content-Type: application/json"], HTTPClient.METHOD_PUT, JSON.stringify(entry))
+	if err != OK:
+		req.queue_free()
+
+# The database refuses lower scores, so refresh to learn the player's true standing.
+func _on_uploaded(_result: int, _code: int, _headers: PackedStringArray, _body: PackedByteArray, req: HTTPRequest) -> void:
+	req.queue_free()
+	refresh()
 
 # Records a finished round. A score only counts if it beats the player's own best;
 # a zero score is never recorded. Players are matched ignoring upper/lower case.
@@ -23,12 +81,15 @@ func record(player_name: String, score: int, hero: String) -> Dictionary:
 	var key = clean.to_lower()
 	var before = _score_of(key)
 	if score > 0:
-		_merge({
+		var entry = {
 			"name": clean,
 			"score": score,
 			"hero": hero,
 			"date": Time.get_datetime_string_from_system(),
-		})
+		}
+		_merge(entry)
+		if score > before:
+			_upload(entry)
 	last_name = clean
 	_save()
 	var idx = _index_of(key)

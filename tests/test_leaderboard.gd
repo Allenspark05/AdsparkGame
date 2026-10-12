@@ -73,15 +73,23 @@ func _init():
 	check(r["rank"] == 3 and r["total"] == 3, "rank and total are reported: %s" % [r])
 	check(lb.best() == 9, "best() is the top score")
 
-	# every player is stored, top() shows ten, and ranks beyond ten are still reported
+	# every player is stored, top() shows up to 100, and ranks beyond ten are still reported
 	lb = fresh()
 	for i in range(1, 13):
 		lb.record("P%d" % i, i + 10, "boy")
-	check(lb.top().size() == 10, "top() shows at most 10 entries")
+	check(lb.top().size() == 12, "top() lists every player up to the limit")
 	check(lb.top(3).size() == 3, "top(3) returns three entries")
 	check(lb.count() == 12, "all 12 players are kept")
 	r = lb.record("Late", 1, "boy")
 	check(r["rank"] == 13 and r["total"] == 13 and r["is_best"], "a player below the top ten still gets a rank: %s" % [r])
+
+	# 100 players: all are kept and ranked, and top() caps at 100
+	lb = fresh()
+	for i in range(1, 121):
+		lb.record("Player%d" % i, i, "boy")
+	check(lb.count() == 120, "120 players are all stored")
+	check(lb.top().size() == 100, "top() caps at 100 entries")
+	check(lb.top()[0]["name"] == "Player120" and lb.top()[99]["name"] == "Player21", "the 100 best are shown in order")
 
 	# names
 	lb = fresh()

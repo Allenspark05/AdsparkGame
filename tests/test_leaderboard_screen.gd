@@ -21,6 +21,7 @@ func labels_with_text(node: Node, text: String) -> int:
 	for c in node.get_children():
 		if c is Label and c.text == text:
 			n += 1
+		n += labels_with_text(c, text)
 	return n
 
 func key(code: int) -> InputEventKey:
