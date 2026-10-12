@@ -1,5 +1,7 @@
 extends Node
 
+const UiStyle = preload("res://scenes/ui_style.gd")
+
 @export var pipe_scene : PackedScene
 
 var game_running : bool
@@ -91,6 +93,7 @@ func scored():
 	score += 1
 	$ScoreLabel.text = "SCORE: " + str(score)
 	AudioManager.play("score")
+	UiStyle.pop($ScoreLabel)
 
 func check_top():
 	if $Bird.position.y < 0:

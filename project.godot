@@ -30,7 +30,6 @@ AudioManager="*res://scenes/audio_manager.gd"
 window/size/viewport_width=864
 window/size/viewport_height=936
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
 window/handheld/orientation=1
 
 [rendering]
@@ -38,3 +37,7 @@ window/handheld/orientation=1
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
+
+[gui]
+
+theme/custom_font="res://assets/fonts/Bungee-Regular.ttf"

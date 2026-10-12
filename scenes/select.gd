@@ -15,6 +15,8 @@ var cards : Array = []
 var stage : String = "name"  # "name" while typing the name, "hero" while choosing the hero
 var name_edit : LineEdit
 var hint : Label
+var step_label : Label
+var chips : HBoxContainer
 
 func _ready():
 	var bg = Sprite2D.new()
@@ -32,7 +34,7 @@ func _ready():
 
 	var title = Label.new()
 	title.text = "CHOOSE YOUR HERO"
-	title.add_theme_font_size_override("font_size", 52)
+	title.add_theme_font_size_override("font_size", 46)
 	title.add_theme_color_override("font_color", Color(1.0, 0.6, 0.15))
 	title.add_theme_color_override("font_outline_color", Color(0.12, 0.03, 0.2))
 	title.add_theme_constant_override("outline_size", 10)
@@ -42,14 +44,15 @@ func _ready():
 	add_child(title)
 
 	var name_label = Label.new()
-	name_label.text = "YOUR NAME"
-	name_label.add_theme_font_size_override("font_size", 22)
+	name_label.text = "STEP 1 OF 2 - YOUR NAME"
+	name_label.add_theme_font_size_override("font_size", 20)
 	name_label.add_theme_color_override("font_color", Color(1, 1, 1))
 	name_label.add_theme_color_override("font_outline_color", Color(0.12, 0.03, 0.2))
 	name_label.add_theme_constant_override("outline_size", 8)
 	name_label.position = Vector2(0, 214)
 	name_label.size = Vector2(864, 30)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	step_label = name_label
 	add_child(name_label)
 
 	name_edit = LineEdit.new()
@@ -59,6 +62,7 @@ func _ready():
 	name_edit.add_theme_font_size_override("font_size", 28)
 	name_edit.position = Vector2(252, 246)
 	name_edit.size = Vector2(360, 52)
+	UiStyle.style_line_edit(name_edit)
 	name_edit.text_submitted.connect(_on_name_submitted)
 	name_edit.text_changed.connect(_on_name_changed)
 	name_edit.focus_entered.connect(_on_name_focused)
@@ -78,6 +82,15 @@ func _ready():
 	hint.size = Vector2(864, 32)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(hint)
+
+	chips = HBoxContainer.new()
+	chips.add_theme_constant_override("separation", 14)
+	chips.alignment = BoxContainer.ALIGNMENT_CENTER
+	chips.position = Vector2(0, 650)
+	chips.size = Vector2(864, 40)
+	for pair in [["< >", "CHOOSE"], ["ENTER", "PLAY"], ["TAB", "NAME"], ["L", "BOARD"], ["M", "MUTE"]]:
+		chips.add_child(_make_chip(pair[0], pair[1]))
+	add_child(chips)
 
 	var lb_button = Button.new()
 	lb_button.text = "Leaderboard"
@@ -117,6 +130,9 @@ func _make_card(i: int) -> Button:
 	portrait.size = Vector2(190, 190)
 	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(portrait)
+	var bob = portrait.create_tween().set_loops()
+	bob.tween_property(portrait, "position:y", 12.0, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	bob.tween_property(portrait, "position:y", 20.0, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 	var name_label = Label.new()
 	name_label.text = hero.name
@@ -138,8 +154,35 @@ func _make_card(i: int) -> Button:
 	card.add_child(tag_label)
 	return card
 
-func _style(color: Color, border: int, fill_alpha: float) -> StyleBoxFlat:
+func _make_chip(key_text: String, action: String) -> Control:
+	var box = HBoxContainer.new()
+	box.add_theme_constant_override("separation", 5)
+	var key = Label.new()
+	key.text = key_text
+	key.add_theme_font_size_override("font_size", 13)
+	key.add_theme_color_override("font_color", Color(0.12, 0.03, 0.2))
 	var sb = StyleBoxFlat.new()
+	sb.bg_color = Color(1.0, 0.6, 0.15)
+	sb.set_corner_radius_all(6)
+	sb.content_margin_left = 7
+	sb.content_margin_right = 7
+	sb.content_margin_top = 3
+	sb.content_margin_bottom = 3
+	key.add_theme_stylebox_override("normal", sb)
+	var act = Label.new()
+	act.text = action
+	act.add_theme_font_size_override("font_size", 13)
+	act.add_theme_color_override("font_outline_color", UiStyle.OUTLINE)
+	act.add_theme_constant_override("outline_size", 6)
+	box.add_child(key)
+	box.add_child(act)
+	return box
+
+func _style(color: Color, border: int, fill_alpha: float, glow: bool = false) -> StyleBoxFlat:
+	var sb = StyleBoxFlat.new()
+	if glow:
+		sb.shadow_color = Color(color.r, color.g, color.b, 0.6)
+		sb.shadow_size = 22
 	sb.bg_color = Color(0.08, 0.03, 0.16, fill_alpha)
 	sb.border_color = color
 	sb.set_border_width_all(border)
@@ -166,20 +209,28 @@ func _refresh():
 		var border = 2
 		if selected:
 			border = 8 if active else 4
-		var sb = _style(color, border, 0.97)
+		var sb = _style(color, border, 0.97, selected and active)
 		for state in ["normal", "hover", "pressed"]:
 			cards[i].add_theme_stylebox_override(state, sb)
 		cards[i].modulate = Color(1, 1, 1) if (selected and active) else Color(0.65, 0.65, 0.65)
+		cards[i].pivot_offset = CARD_SIZE / 2.0
+		var target = Vector2(1.06, 1.06) if (selected and active) else Vector2.ONE
+		var t = cards[i].create_tween()
+		t.tween_property(cards[i], "scale", target, 0.15).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_refresh_hint()
 
 func _refresh_hint():
 	hint.add_theme_color_override("font_color", Color(1, 1, 1))
+	step_label.text = "STEP 1 OF 2 - YOUR NAME" if stage == "name" else "STEP 2 OF 2 - PICK YOUR HERO"
+	chips.visible = (stage == "hero")
+	hint.visible = (stage == "name")
 	if stage == "name":
 		hint.text = "Type your name, then press ENTER"
 	else:
 		hint.text = "LEFT / RIGHT choose    ENTER play    TAB change name    L board    M mute"
 
 func _nudge():
+	hint.visible = true
 	hint.text = "Please type your name first!"
 	hint.add_theme_color_override("font_color", Color(1.0, 0.6, 0.15))
 	AudioManager.play("tick")
