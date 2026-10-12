@@ -99,6 +99,29 @@ func _initialize():
 	check(board.count() == 2 and board.top()[0]["name"] == "Zoe", "a second player gets their own row")
 	check("#1 of 2" in go.info_label.text, "the rank is relative to all players: %s" % go.info_label.text)
 
+	# get-ready hint, pause, and keyboard restart
+	main.new_game()
+	check(main.hint_label.visible, "the get-ready hint shows before the first flap")
+	main.flap_or_start()
+	check(not main.hint_label.visible, "the hint hides once the game starts")
+	main.set_paused(true)
+	var px = main.get_node("Bird").position.y
+	var sc = main.scroll
+	main._process(0.016)
+	check(main.scroll == sc and main.pause_label.visible, "pausing freezes the scroll and shows the notice")
+	main.set_paused(false)
+	main._process(0.5)
+	check(is_equal_approx(main.scroll - sc, main.SCROLL_SPEED * 0.5), "scroll distance follows time, not frame count")
+	main.stop_game()
+	check(not main.can_restart(), "Space cannot restart in the first moments after dying")
+	main.game_over_at -= 1000
+	check(main.can_restart(), "Space can restart after the guard time")
+	var key = InputEventKey.new()
+	key.keycode = KEY_SPACE
+	key.pressed = true
+	main._input(key)
+	check(not main.game_over, "Space restarts after the guard time")
+
 	main.free()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_PATH))
 	print("FAILURES: ", failures)
