@@ -68,6 +68,18 @@ func _ready():
 	name_edit.focus_entered.connect(_on_name_focused)
 	add_child(name_edit)
 
+	if _is_web():
+		# TV browsers and phones cannot type into a canvas text box, so offer the browser's own prompt
+		var type_button = Button.new()
+		type_button.text = "TYPE"
+		type_button.add_theme_font_size_override("font_size", 22)
+		type_button.position = Vector2(624, 246)
+		type_button.size = Vector2(110, 52)
+		type_button.focus_mode = Control.FOCUS_NONE
+		type_button.pressed.connect(_prompt_name)
+		UiStyle.style_button(type_button)
+		add_child(type_button)
+
 	for i in HEROES.size():
 		var card = _make_card(i)
 		card.position = Vector2(100 + i * 364, CARD_Y)
@@ -235,9 +247,31 @@ func _nudge():
 	hint.add_theme_color_override("font_color", Color(1.0, 0.6, 0.15))
 	AudioManager.play("tick")
 
+func _is_web() -> bool:
+	return OS.has_feature("web")
+
+# Ask for the name with the browser's own prompt, which opens the native on-screen keyboard
+# on TVs and phones. The canvas text box cannot do that there.
+func _prompt_name() -> void:
+	if not _is_web():
+		return
+	var answer = JavaScriptBridge.eval("window.prompt('Type your name', %s)" % JSON.stringify(_name()))
+	_apply_prompt_result(answer)
+
+# answer is the prompt's text, or null when it was cancelled.
+func _apply_prompt_result(answer) -> void:
+	if not (answer is String):
+		return
+	name_edit.text = answer.strip_edges().substr(0, name_edit.max_length)
+	if _name() != "":
+		_on_name_submitted(name_edit.text)
+
 func _on_name_submitted(_text: String) -> void:
 	if _name() == "":
-		_nudge()
+		if _is_web():
+			_prompt_name()  # on a TV remote, OK on an empty box opens the keyboard
+		else:
+			_nudge()
 		return
 	AudioManager.play("confirm")
 	_set_stage("hero")

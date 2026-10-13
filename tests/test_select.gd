@@ -99,6 +99,22 @@ func _initialize():
 	check(state.player_name == "Kai" and state.hero == "girl", "starting stores the name and hero: %s / %s" % [state.player_name, state.hero])
 	check(current_scene != null and current_scene.scene_file_path == MAIN, "starting opens the game")
 
+	# the browser name prompt (TV / phone): its answer fills the box, a cancel changes nothing
+	state.player_name = ""
+	var web = await make_select()
+	web.name_edit.text = ""
+	web._apply_prompt_result(null)
+	check(web.stage == "name" and web.name_edit.text == "", "cancelling the name prompt changes nothing")
+	web._apply_prompt_result("   ")
+	check(web.stage == "name", "a blank prompt answer stays on the name step")
+	web._apply_prompt_result("  Mayumi Santos Reyes  ")
+	check(web.name_edit.text == "Mayumi Santo", "the prompt answer is trimmed and capped at the box length: '%s'" % web.name_edit.text)
+	check(web.stage == "hero", "a good prompt answer moves on to the hero step")
+	web.name_edit.text = ""
+	web._set_stage("name")
+	web.name_edit.text_submitted.emit("")
+	check(web.stage == "name" and "name" in web.hint.text.to_lower(), "off the web, Enter on an empty name still shows the nudge")
+
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_PATH))
 	print("FAILURES: ", failures)
 	quit(1 if failures > 0 else 0)
