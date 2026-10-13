@@ -99,6 +99,23 @@ func _initialize():
 	check(state.player_name == "Kai" and state.hero == "girl", "starting stores the name and hero: %s / %s" % [state.player_name, state.hero])
 	check(current_scene != null and current_scene.scene_file_path == MAIN, "starting opens the game")
 
+	# tapping the name box on a TV / phone asks through the browser prompt; on desktop it does not
+	var asked = []
+	var tap = InputEventMouseButton.new()
+	tap.button_index = MOUSE_BUTTON_LEFT
+	tap.pressed = true
+	state.player_name = ""
+	var tv = await make_select()
+	tv.ask_name = func(current): asked.append(current); return "Rin"
+	tv.name_edit.text = ""
+	tv.prompt_on_tap = false
+	tv._on_name_gui_input(tap)
+	check(asked.size() == 0, "on desktop a click on the name box does not open the prompt")
+	tv.prompt_on_tap = true
+	tv._on_name_gui_input(tap)
+	check(asked.size() == 1 and tv.name_edit.text == "Rin" and tv.stage == "hero", "on a TV a tap on the name box opens the prompt and uses the answer: '%s'" % tv.name_edit.text)
+	tv.queue_free()
+
 	# the browser name prompt (TV / phone): its answer fills the box, a cancel changes nothing
 	state.player_name = ""
 	var web = await make_select()

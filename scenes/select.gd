@@ -17,6 +17,11 @@ var name_edit : LineEdit
 var hint : Label
 var step_label : Label
 var chips : HBoxContainer
+const BUILD_TAG = "web build 3"
+# True on TV and phone browsers, where typing straight into the canvas box never works.
+var prompt_on_tap : bool = false
+# Asks the player for text; returns the answer, or null when cancelled. Replaced in tests.
+var ask_name : Callable = _browser_prompt
 
 func _ready():
 	var bg = Sprite2D.new()
@@ -66,9 +71,20 @@ func _ready():
 	name_edit.text_submitted.connect(_on_name_submitted)
 	name_edit.text_changed.connect(_on_name_changed)
 	name_edit.focus_entered.connect(_on_name_focused)
+	name_edit.gui_input.connect(_on_name_gui_input)
 	add_child(name_edit)
 
+	prompt_on_tap = _is_web() and _is_touch_or_tv()
 	if _is_web():
+		var tag = Label.new()
+		tag.text = BUILD_TAG
+		tag.add_theme_font_size_override("font_size", 14)
+		tag.add_theme_color_override("font_outline_color", UiStyle.OUTLINE)
+		tag.add_theme_constant_override("outline_size", 5)
+		tag.position = Vector2(0, 748)
+		tag.size = Vector2(852, 20)
+		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		add_child(tag)
 		# TV browsers and phones cannot type into a canvas text box, so offer the browser's own prompt
 		var type_button = Button.new()
 		type_button.text = "TYPE"
@@ -250,13 +266,26 @@ func _nudge():
 func _is_web() -> bool:
 	return OS.has_feature("web")
 
+func _is_touch_or_tv() -> bool:
+	return bool(JavaScriptBridge.eval("/Android|TV|Tizen|Web0S|SMART-TV|Mobi|iPhone|iPad/i.test(navigator.userAgent)"))
+
+func _browser_prompt(current: String):
+	return JavaScriptBridge.eval("window.prompt('Type your name', %s)" % JSON.stringify(current))
+
 # Ask for the name with the browser's own prompt, which opens the native on-screen keyboard
 # on TVs and phones. The canvas text box cannot do that there.
 func _prompt_name() -> void:
-	if not _is_web():
+	_apply_prompt_result(ask_name.call(_name()))
+
+# On TVs and phones a tap or OK on the name box opens the keyboard instead of an unusable caret.
+func _on_name_gui_input(event: InputEvent) -> void:
+	if not prompt_on_tap:
 		return
-	var answer = JavaScriptBridge.eval("window.prompt('Type your name', %s)" % JSON.stringify(_name()))
-	_apply_prompt_result(answer)
+	var tapped = event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
+	var touched = event is InputEventScreenTouch and event.pressed
+	if tapped or touched:
+		name_edit.accept_event()
+		_prompt_name()
 
 # answer is the prompt's text, or null when it was cancelled.
 func _apply_prompt_result(answer) -> void:
